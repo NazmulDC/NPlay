@@ -1,0 +1,54 @@
+name: Build NPlay APK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: nplay_flutter
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Create Android project files
+        run: |
+          flutter create --platforms=android --org com.nazmul --project-name nplay .
+          rm -rf test
+          cp -r overrides/android/. android/
+
+      - name: Get packages
+        run: flutter pub get
+
+      - name: Check code (errors show at the top of the run page)
+        run: |
+          flutter analyze --no-fatal-infos --no-fatal-warnings 2>&1 | tee analyze.log || true
+          grep -E " error • " analyze.log | head -40 | while IFS= read -r line; do echo "::error::$line"; done || true
+          if grep -q " error • " analyze.log; then exit 1; fi
+
+      - name: Build release APK
+        run: |
+          flutter build apk --release --split-per-abi --no-shrink 2>&1 | tee build.log
+          code=${PIPESTATUS[0]}
+          if [ "$code" -ne 0 ]; then
+            grep -E "(Error|error):|\.dart:[0-9]+" build.log | head -30 | while IFS= read -r line; do echo "::error::$line"; done || true
+          fi
+          exit $code
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: NPlay-APK
+          path: nplay_flutter/build/app/outputs/flutter-apk/*.apk
