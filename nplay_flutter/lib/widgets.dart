@@ -75,13 +75,13 @@ Future<void> showMediaInfo(BuildContext context, MediaEntry e) {
   );
 }
 
-class Thumb extends StatefulWidget {
+class NThumb extends StatefulWidget {
   final MediaEntry entry;
   final double width;
   final double height;
   final double? progress;
   final bool isNew;
-  const Thumb({
+  const NThumb({
     super.key,
     required this.entry,
     this.width = 124,
@@ -91,10 +91,10 @@ class Thumb extends StatefulWidget {
   });
 
   @override
-  State<Thumb> createState() => _ThumbState();
+  State<NThumb> createState() => _ThumbState();
 }
 
-class _ThumbState extends State<Thumb> {
+class _ThumbState extends State<NThumb> {
   Future<Uint8List?>? _f;
 
   @override
@@ -298,7 +298,7 @@ class MediaTile extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 7, 4, 7),
           child: Row(
             children: [
-              Thumb(entry: entry, width: 54, height: 54),
+              NThumb(entry: entry, width: 54, height: 54),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -335,7 +335,7 @@ class MediaTile extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Thumb(
+            NThumb(
               entry: entry,
               width: w,
               height: w * 0.6,
@@ -448,7 +448,7 @@ class VideoGridTile extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Thumb(
+              NThumb(
                 entry: entry,
                 width: w,
                 height: w * 0.57,

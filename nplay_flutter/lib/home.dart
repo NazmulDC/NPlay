@@ -265,7 +265,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     border: Border.all(color: C.blue2, width: 1.4),
                     boxShadow: const [BoxShadow(color: Color(0x662C7BFF), blurRadius: 10)],
                   ),
-                  child: Thumb(
+                  child: NThumb(
                     entry: list[i],
                     width: w,
                     height: w * 0.56,
