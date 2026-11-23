@@ -26,8 +26,10 @@ jobs:
       - name: Create Android project files
         run: |
           flutter create --platforms=android --org com.nazmul --project-name nplay .
-          rm -rf test
+          rm -rf test NPlay_v4_upload
           cp -r overrides/android/. android/
+          sed -i -E 's/compileSdk = flutter\.compileSdkVersion/compileSdk = 36/' android/app/build.gradle.kts
+          sed -i -E 's/compileSdkVersion flutter\.compileSdkVersion/compileSdkVersion 36/' android/app/build.gradle
 
       - name: Get packages
         run: flutter pub get
@@ -43,7 +45,12 @@ jobs:
           flutter build apk --release --split-per-abi --no-shrink 2>&1 | tee build.log
           code=${PIPESTATUS[0]}
           if [ "$code" -ne 0 ]; then
-            grep -E "(Error|error):|\.dart:[0-9]+" build.log | head -30 | while IFS= read -r line; do echo "::error::$line"; done || true
+            awk '/What went wrong/{f=1} f' build.log | head -60 > wrong.log
+            if [ -s wrong.log ]; then
+              while IFS= read -r line; do echo "::error::$line"; done < wrong.log
+            else
+              grep -E "(Error|error):|\.dart:[0-9]+|FAILED|e: " build.log | head -40 | while IFS= read -r line; do echo "::error::$line"; done || true
+            fi
           fi
           exit $code
 
