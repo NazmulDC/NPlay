@@ -2,6 +2,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+
 import 'models.dart';
 import 'store.dart';
 
@@ -45,13 +46,15 @@ class NPlayHandler extends BaseAudioHandler with SeekHandler {
     final e = entries[i];
     current.value = e;
     Store.addHistory(e.id);
-    mediaItem.add(MediaItem(
-      id: e.id,
-      title: cleanTitle(e.title),
-      album: 'NPlay',
-      artist: e.folder,
-      duration: e.durationSec > 0 ? Duration(seconds: e.durationSec) : null,
-    ));
+    mediaItem.add(
+      MediaItem(
+        id: e.id,
+        title: cleanTitle(e.title),
+        album: 'NPlay',
+        artist: e.folder,
+        duration: e.durationSec > 0 ? Duration(seconds: e.durationSec) : null,
+      ),
+    );
     if (audioOnly.value) _applyTrack();
     _push();
   }
@@ -115,22 +118,24 @@ class NPlayHandler extends BaseAudioHandler with SeekHandler {
   void _push() {
     _lastPush = DateTime.now().millisecondsSinceEpoch;
     final playing = player.state.playing;
-    playbackState.add(PlaybackState(
-      controls: [
-        MediaControl.skipToPrevious,
-        playing ? MediaControl.pause : MediaControl.play,
-        MediaControl.skipToNext,
-      ],
-      systemActions: const {MediaAction.seek},
-      androidCompactActionIndices: const [0, 1, 2],
-      processingState: entries.isEmpty
-          ? AudioProcessingState.idle
-          : AudioProcessingState.ready,
-      playing: playing,
-      updatePosition: player.state.position,
-      speed: player.state.rate,
-      queueIndex: player.state.playlist.index,
-    ));
+    playbackState.add(
+      PlaybackState(
+        controls: [
+          MediaControl.skipToPrevious,
+          playing ? MediaControl.pause : MediaControl.play,
+          MediaControl.skipToNext,
+        ],
+        systemActions: const {MediaAction.seek},
+        androidCompactActionIndices: const [0, 1, 2],
+        processingState: entries.isEmpty
+            ? AudioProcessingState.idle
+            : AudioProcessingState.ready,
+        playing: playing,
+        updatePosition: player.state.position,
+        speed: player.state.rate,
+        queueIndex: player.state.playlist.index,
+      ),
+    );
   }
 
   @override

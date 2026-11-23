@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -34,6 +35,8 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
   double _bright = 0.5;
   double _vol = 100.0;
   int _sleepMin = 0;
+  bool _subOn = false;
+  String? _subLabel;
   BoxFit _fit = BoxFit.contain;
   double? _scrub;
 
@@ -109,9 +112,7 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
         DeviceOrientation.landscapeRight,
       ]);
     } else {
-      SystemChrome.setPreferredOrientations([
-        DeviceOrientation.portraitUp,
-      ]);
+      SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     }
   }
 
@@ -245,13 +246,18 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
             children: [
               const Padding(
                 padding: EdgeInsets.all(14),
-                child: Text('Playback speed', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                child: Text(
+                  'Playback speed',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
               ),
               for (final s in const [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0])
                 ListTile(
                   dense: true,
                   title: Text('${s}x'),
-                  trailing: s == _speed ? const Icon(Icons.check_rounded, color: C.blue2) : null,
+                  trailing: s == _speed
+                      ? const Icon(Icons.check_rounded, color: C.blue2)
+                      : null,
                   onTap: () {
                     setState(() => _speed = s);
                     p.setRate(s);
@@ -276,18 +282,115 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
             children: [
               const Padding(
                 padding: EdgeInsets.all(14),
-                child: Text('Sleep timer', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                child: Text(
+                  'Sleep timer',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
               ),
               for (final m in const [0, 15, 30, 45, 60, 90])
                 ListTile(
                   dense: true,
                   title: Text(m == 0 ? 'Off' : '$m minutes'),
-                  trailing: m == _sleepMin ? const Icon(Icons.check_rounded, color: C.blue2) : null,
+                  trailing: m == _sleepMin
+                      ? const Icon(Icons.check_rounded, color: C.blue2)
+                      : null,
                   onTap: () {
                     _setSleep(m);
                     Navigator.pop(ctx);
                   },
                 ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickSubtitleFile() async {
+    final res = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['srt', 'vtt', 'ass', 'ssa', 'sub'],
+    );
+    final path = res?.files.single.path;
+    if (path == null) return;
+    final name = path.split('/').last;
+    await p.setSubtitleTrack(
+      SubtitleTrack.uri(Uri.file(path).toString(), title: name),
+    );
+    if (mounted) {
+      setState(() {
+        _subOn = true;
+        _subLabel = name;
+      });
+      _showHud(Icons.subtitles_rounded, 'Subtitle: $name');
+    }
+  }
+
+  Future<void> _subtitleSheet() async {
+    final tracks = p.state.tracks.subtitle.where((t) => t.id != 'no').toList();
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: C.bg2,
+      builder: (ctx) => SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(14),
+                child: Text(
+                  'Subtitle (CC)',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+              ),
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.subtitles_off_rounded),
+                title: const Text('Off'),
+                trailing: !_subOn
+                    ? const Icon(Icons.check_rounded, color: C.blue2)
+                    : null,
+                onTap: () async {
+                  await p.setSubtitleTrack(SubtitleTrack.no());
+                  if (mounted) setState(() => _subOn = false);
+                  Navigator.pop(ctx);
+                },
+              ),
+              for (final t in tracks)
+                ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.subtitles_rounded),
+                  title: Text(t.title ?? t.language ?? 'Track ${t.id}'),
+                  trailing:
+                      _subOn &&
+                          _subLabel ==
+                              (t.title ?? t.language ?? 'Track ${t.id}')
+                      ? const Icon(Icons.check_rounded, color: C.blue2)
+                      : null,
+                  onTap: () async {
+                    await p.setSubtitleTrack(t);
+                    if (mounted) {
+                      setState(() {
+                        _subOn = true;
+                        _subLabel = t.title ?? t.language ?? 'Track ${t.id}';
+                      });
+                    }
+                    Navigator.pop(ctx);
+                  },
+                ),
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.file_open_rounded, color: C.blue2),
+                title: const Text('Add subtitle file...'),
+                subtitle: const Text(
+                  'Pick a downloaded .srt / .vtt file',
+                  style: TextStyle(fontSize: 11),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickSubtitleFile();
+                },
+              ),
             ],
           ),
         ),
@@ -302,7 +405,10 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
       _showHud(Icons.volume_off_rounded, 'Muted');
     } else {
       p.setVolume(_vol > 0 ? _vol : 100.0);
-      _showHud(Icons.volume_up_rounded, '${(_vol > 0 ? _vol : 100.0).round()}%');
+      _showHud(
+        Icons.volume_up_rounded,
+        '${(_vol > 0 ? _vol : 100.0).round()}%',
+      );
     }
   }
 
@@ -384,7 +490,10 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
             if (left) {
               _bright = (_bright + delta).clamp(0.02, 1.0).toDouble();
               Bright.set(_bright);
-              _showHud(Icons.brightness_6_rounded, '${(_bright * 100).round()}%');
+              _showHud(
+                Icons.brightness_6_rounded,
+                '${(_bright * 100).round()}%',
+              );
             } else {
               _vol = (_vol + delta * 200).clamp(0.0, 200.0).toDouble();
               p.setVolume(_vol);
@@ -449,7 +558,10 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
                       e == null ? '' : cleanTitle(e.title),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 13, color: Colors.white70),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.white70,
+                      ),
                     ),
                   ),
                 ),
@@ -462,8 +574,20 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
                   },
                 ),
                 IconButton(
+                  tooltip: 'Subtitle (CC)',
+                  icon: Icon(
+                    _subOn ? Icons.subtitles_rounded : Icons.subtitles_outlined,
+                    size: 26,
+                    color: _subOn ? C.blue2 : Colors.white,
+                  ),
+                  onPressed: _subtitleSheet,
+                ),
+                IconButton(
                   tooltip: 'Playlist',
-                  icon: const Icon(Icons.format_list_bulleted_rounded, size: 28),
+                  icon: const Icon(
+                    Icons.format_list_bulleted_rounded,
+                    size: 28,
+                  ),
                   onPressed: _queueSheet,
                 ),
                 PopupMenuButton<String>(
@@ -481,12 +605,21 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
                   itemBuilder: (_) => [
                     PopupMenuItem<String>(
                       value: 'sleep',
-                      child: Text(_sleepMin == 0 ? 'Sleep timer' : 'Sleep timer ($_sleepMin min)'),
+                      child: Text(
+                        _sleepMin == 0
+                            ? 'Sleep timer'
+                            : 'Sleep timer ($_sleepMin min)',
+                      ),
                     ),
-                    const PopupMenuItem<String>(value: 'info', child: Text('Info')),
+                    const PopupMenuItem<String>(
+                      value: 'info',
+                      child: Text('Info'),
+                    ),
                     PopupMenuItem<String>(
                       value: 'bg',
-                      child: Text(_bg ? 'Background play: ON' : 'Background play: OFF'),
+                      child: Text(
+                        _bg ? 'Background play: ON' : 'Background play: OFF',
+                      ),
                     ),
                   ],
                 ),
@@ -515,7 +648,11 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
                     IconButton(
                       tooltip: 'Mute',
                       iconSize: 30,
-                      icon: Icon(_muted ? Icons.volume_off_rounded : Icons.volume_up_rounded),
+                      icon: Icon(
+                        _muted
+                            ? Icons.volume_off_rounded
+                            : Icons.volume_up_rounded,
+                      ),
                       onPressed: _toggleMute,
                     ),
                     const SizedBox(height: 18),
@@ -582,11 +719,15 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
                     final cur = _scrub ?? pos.inMilliseconds.toDouble();
                     return Row(
                       children: [
-                        Text(fmtDur(Duration(milliseconds: cur.round())),
-                            style: const TextStyle(fontSize: 13)),
+                        Text(
+                          fmtDur(Duration(milliseconds: cur.round())),
+                          style: const TextStyle(fontSize: 13),
+                        ),
                         Expanded(
                           child: Slider(
-                            value: max > 0 ? cur.clamp(0.0, max).toDouble() : 0.0,
+                            value: max > 0
+                                ? cur.clamp(0.0, max).toDouble()
+                                : 0.0,
                             min: 0,
                             max: max > 0 ? max : 1,
                             onChangeStart: (v) => setState(() => _scrub = v),
@@ -621,7 +762,9 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
                             border: Border.all(color: Colors.white, width: 2),
                           ),
                           child: Icon(
-                            (s.data ?? false) ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                            (s.data ?? false)
+                                ? Icons.pause_rounded
+                                : Icons.play_arrow_rounded,
                             size: 34,
                           ),
                         ),
@@ -655,7 +798,10 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
                       onPressed: _speedSheet,
                       child: Text(
                         _speed == 1.0 ? 'Speed' : '${_speed}x',
-                        style: const TextStyle(color: Colors.white, fontSize: 17),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                        ),
                       ),
                     ),
                     IconButton(
@@ -677,7 +823,10 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
   Widget _audioBackdrop() {
     return Container(
       decoration: const BoxDecoration(
-        gradient: RadialGradient(colors: [Color(0xFF12358A), C.bg], radius: 0.9),
+        gradient: RadialGradient(
+          colors: [Color(0xFF12358A), C.bg],
+          radius: 0.9,
+        ),
       ),
       child: const Center(
         child: Icon(Icons.headphones_rounded, size: 90, color: C.blue2),
@@ -720,12 +869,18 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
                     child: IgnorePointer(
                       child: Center(
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xCC2C7BFF),
                             borderRadius: BorderRadius.circular(24),
                           ),
-                          child: const Text('2x  >>', style: TextStyle(fontWeight: FontWeight.w700)),
+                          child: const Text(
+                            '2x  >>',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
                         ),
                       ),
                     ),
@@ -739,14 +894,20 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
                     child: IgnorePointer(
                       child: Center(
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 10,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xCC2C7BFF),
                             borderRadius: BorderRadius.circular(30),
                           ),
                           child: Text(
                             _seekFb!,
-                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                            ),
                           ),
                         ),
                       ),
@@ -757,7 +918,10 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
                     child: IgnorePointer(
                       child: Center(
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 14,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.black54,
                             borderRadius: BorderRadius.circular(16),
@@ -767,7 +931,13 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
                             children: [
                               Icon(_hudIcon, size: 28),
                               const SizedBox(width: 10),
-                              Text(_hud!, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                              Text(
+                                _hud!,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                             ],
                           ),
                         ),
