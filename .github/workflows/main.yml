@@ -46,6 +46,22 @@ jobs:
       - name: Get packages
         run: flutter pub get
 
+      - name: Patch file_picker's own compileSdk (its published Android code is stuck at 34)
+        run: |
+          CACHE="${PUB_CACHE:-$HOME/.pub-cache}"
+          FP_DIR=$(find "$CACHE/hosted" -maxdepth 2 -iname "file_picker-*" -type d | head -1)
+          echo "file_picker package dir: $FP_DIR"
+          if [ -n "$FP_DIR" ] && [ -f "$FP_DIR/android/build.gradle" ]; then
+            echo "---- before ----"
+            grep -n -i "compileSdk" "$FP_DIR/android/build.gradle" || true
+            sed -i -E 's/compileSdkVersion[[:space:]]+[0-9]+/compileSdkVersion 36/' "$FP_DIR/android/build.gradle"
+            sed -i -E 's/compileSdk([[:space:]]|=)[[:space:]]*[0-9]+/compileSdk\1 36/' "$FP_DIR/android/build.gradle"
+            echo "---- after ----"
+            grep -n -i "compileSdk" "$FP_DIR/android/build.gradle" || true
+          else
+            echo "file_picker android/build.gradle not found (nothing to patch)"
+          fi
+
       - name: Check code (errors show at the top of the run page)
         run: |
           flutter analyze --no-fatal-infos --no-fatal-warnings 2>&1 | tee analyze.log || true
