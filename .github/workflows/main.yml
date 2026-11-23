@@ -28,8 +28,20 @@ jobs:
           flutter create --platforms=android --org com.nazmul --project-name nplay .
           rm -rf test NPlay_v4_upload
           cp -r overrides/android/. android/
-          sed -i -E 's/compileSdk = flutter\.compileSdkVersion/compileSdk = 36/' android/app/build.gradle.kts
-          sed -i -E 's/compileSdkVersion flutter\.compileSdkVersion/compileSdkVersion 36/' android/app/build.gradle
+          python3 - <<'PY'
+          import re, glob
+          for f in glob.glob('android/app/build.gradle*') + glob.glob('android/settings.gradle*'):
+              s = open(f).read()
+              if f.endswith('.kts'):
+                  s2 = re.sub(r'compileSdk\s*=\s*[^\n]*', 'compileSdk = 36', s)
+              else:
+                  s2 = re.sub(r'compileSdkVersion\s+[^\n]*', 'compileSdkVersion 36', s)
+              if s2 != s:
+                  open(f, 'w').write(s2)
+                  print('patched', f)
+          PY
+          echo "---- app/build.gradle(.kts) compileSdk line(s): ----"
+          grep -n -i "compileSdk" android/app/build.gradle* || true
 
       - name: Get packages
         run: flutter pub get
