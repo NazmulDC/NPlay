@@ -20,6 +20,7 @@ class NPlayHandler extends BaseAudioHandler with SeekHandler {
   int _lastPush = 0;
 
   NPlayHandler() {
+    _initVolume();
     player.stream.playing.listen((_) => _push());
     player.stream.rate.listen((_) => _push());
     player.stream.playlist.listen((pl) => _onIndex(pl.index));
@@ -27,6 +28,16 @@ class NPlayHandler extends BaseAudioHandler with SeekHandler {
       final n = DateTime.now().millisecondsSinceEpoch;
       if (n - _lastPush > 4000) _push();
     });
+  }
+
+  /// Allow volume up to 200% (double) and start at normal 100%.
+  Future<void> _initVolume() async {
+    try {
+      await (player.platform as dynamic).setProperty('volume-max', '200');
+    } catch (_) {}
+    try {
+      await player.setVolume(100.0);
+    } catch (_) {}
   }
 
   void _onIndex(int i) {

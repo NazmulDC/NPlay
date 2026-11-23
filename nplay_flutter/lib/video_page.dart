@@ -386,7 +386,7 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
               Bright.set(_bright);
               _showHud(Icons.brightness_6_rounded, '${(_bright * 100).round()}%');
             } else {
-              _vol = (_vol + delta * 100).clamp(0.0, 100.0).toDouble();
+              _vol = (_vol + delta * 200).clamp(0.0, 200.0).toDouble();
               p.setVolume(_vol);
               _showHud(
                 _vol == 0 ? Icons.volume_off_rounded : Icons.volume_up_rounded,
