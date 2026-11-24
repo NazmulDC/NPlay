@@ -4,6 +4,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'library.dart';
 import 'models.dart';
 import 'nav.dart';
+import 'open_intent.dart';
 import 'pages.dart';
 import 'store.dart';
 import 'theme.dart';
@@ -16,7 +17,8 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
+class _HomePageState extends State<HomePage>
+    with SingleTickerProviderStateMixin {
   late final TabController _tc = TabController(length: 2, vsync: this);
   int _nav = 0; // 0 = Video, 1 = Music, 2 = Playlist, 3 = Me
   List<MediaEntry> _videos = [];
@@ -32,6 +34,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   void initState() {
     super.initState();
     _load();
+    OpenIntent.getInitial().then((p) {
+      if (p != null) _playFile(p);
+    });
+    OpenIntent.listen(_playFile);
   }
 
   @override
@@ -40,8 +46,22 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     super.dispose();
   }
 
+  /// Plays a file handed to NPlay via "Open with" from another app, even
+  /// when it isn't in the scanned library yet.
+  Future<void> _playFile(String path) async {
+    final e = adHocEntry(path);
+    if (e == null) {
+      if (mounted) snack(context, 'Ei file-ta play kora gelo na.');
+      return;
+    }
+    mediaById[e.id] = e;
+    if (!mounted) return;
+    await playList(context, [e], 0);
+  }
+
   Future<void> _load() async {
     setState(() => _loading = true);
+    OpenIntent.rescanSystem();
     final ok = await Library.ask();
     if (!ok) {
       if (!mounted) return;
@@ -72,7 +92,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
   List<MediaEntry> _view(List<MediaEntry> src) {
     final q = _q.toLowerCase();
-    final l = src.where((e) => q.isEmpty || e.title.toLowerCase().contains(q)).toList();
+    final l = src
+        .where((e) => q.isEmpty || e.title.toLowerCase().contains(q))
+        .toList();
     if (_sort == 'name') {
       l.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
     } else if (_sort == 'duration') {
@@ -101,8 +123,14 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         title: const Text('Clear history?'),
         content: const Text('Sob dekha-r history muche jabe.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Clear')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Clear'),
+          ),
         ],
       ),
     );
@@ -126,7 +154,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           children: [
             Icon(icon, size: 60, color: C.blue2),
             const SizedBox(height: 14),
-            Text(text, textAlign: TextAlign.center, style: const TextStyle(color: C.mut, height: 1.6)),
+            Text(
+              text,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: C.mut, height: 1.6),
+            ),
             if (button != null) ...[
               const SizedBox(height: 16),
               FilledButton(onPressed: onPressed, child: Text(button)),
@@ -220,7 +252,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('History', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
+                  const Text(
+                    'History',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+                  ),
                   const SizedBox(height: 3),
                   Container(
                     width: 46,
@@ -263,7 +298,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: C.blue2, width: 1.4),
-                    boxShadow: const [BoxShadow(color: Color(0x662C7BFF), blurRadius: 10)],
+                    boxShadow: const [
+                      BoxShadow(color: Color(0x662C7BFF), blurRadius: 10),
+                    ],
                   ),
                   child: NThumb(
                     entry: list[i],
@@ -298,8 +335,14 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             unselectedLabelColor: Colors.white,
             labelPadding: const EdgeInsets.symmetric(horizontal: 14),
             padding: const EdgeInsets.only(left: 2),
-            labelStyle: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
-            unselectedLabelStyle: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+            labelStyle: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+            ),
+            unselectedLabelStyle: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+            ),
             tabs: const [
               Tab(text: 'Video'),
               Tab(text: 'Folder'),
@@ -342,7 +385,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   Widget _videosTab() {
     final list = _view(_videos);
     if (list.isEmpty) {
-      return _message('Kono video paoa jayni.', button: 'Rescan', onPressed: _load);
+      return _message(
+        'Kono video paoa jayni.',
+        button: 'Rescan',
+        onPressed: _load,
+      );
     }
     final per = _grid ? 2 : 1;
     final rows = <Object>[];
@@ -371,7 +418,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         if (r is String) {
           return Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
-            child: Text(r, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w700)),
+            child: Text(
+              r,
+              style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w700),
+            ),
           );
         }
         final idx = r as List<int>;
@@ -391,7 +441,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               Expanded(child: _gridTile(list, idx[0])),
               const SizedBox(width: 12),
               Expanded(
-                child: idx.length > 1 ? _gridTile(list, idx[1]) : const SizedBox(),
+                child: idx.length > 1
+                    ? _gridTile(list, idx[1])
+                    : const SizedBox(),
               ),
             ],
           ),
@@ -407,7 +459,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     }
     final keys = map.keys.toList()..sort();
     if (keys.isEmpty) {
-      return _message('Kono folder paoa jayni.', button: 'Rescan', onPressed: _load, icon: Icons.folder_rounded);
+      return _message(
+        'Kono folder paoa jayni.',
+        button: 'Rescan',
+        onPressed: _load,
+        icon: Icons.folder_rounded,
+      );
     }
     return ListView.builder(
       padding: const EdgeInsets.only(top: 6, bottom: 8),
@@ -416,19 +473,33 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         final k = keys[i];
         final l = map[k]!;
         return ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 2,
+          ),
           leading: Container(
             width: 52,
             height: 52,
-            decoration: BoxDecoration(color: C.card, borderRadius: BorderRadius.circular(14)),
+            decoration: BoxDecoration(
+              color: C.card,
+              borderRadius: BorderRadius.circular(14),
+            ),
             child: const Icon(Icons.folder_rounded, color: C.blue2, size: 28),
           ),
-          title: Text(k, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 15)),
-          subtitle: Text('${l.length} video', style: const TextStyle(color: C.mut, fontSize: 12.5)),
+          title: Text(
+            k,
+            style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
+          ),
+          subtitle: Text(
+            '${l.length} video',
+            style: const TextStyle(color: C.mut, fontSize: 12.5),
+          ),
           trailing: const Icon(Icons.chevron_right_rounded, color: C.mut),
           onTap: () async {
             await Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => FolderPage(name: k, items: l)),
+              MaterialPageRoute(
+                builder: (_) => FolderPage(name: k, items: l),
+              ),
             );
             if (mounted) setState(() {});
           },
@@ -454,15 +525,26 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         color: C.bg2,
         borderRadius: BorderRadius.circular(16),
         child: ListTile(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           leading: Container(
             width: 46,
             height: 46,
-            decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(14)),
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(14),
+            ),
             child: Icon(icon, color: Colors.white, size: 26),
           ),
-          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
-          subtitle: Text(subtitle, style: const TextStyle(color: C.mut, fontSize: 12.5)),
+          title: Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w500),
+          ),
+          subtitle: Text(
+            subtitle,
+            style: const TextStyle(color: C.mut, fontSize: 12.5),
+          ),
           trailing: trailing,
           onTap: onTap,
         ),
@@ -499,7 +581,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           subtitle: '$favCount items',
           onTap: () async {
             await Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const PlaylistPage(name: 'Favorites')),
+              MaterialPageRoute(
+                builder: (_) => const PlaylistPage(name: 'Favorites'),
+              ),
             );
             if (mounted) setState(() {});
           },
@@ -512,7 +596,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           onTap: () async {
             await Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => FolderPage(name: 'Recently added', items: recentList),
+                builder: (_) =>
+                    FolderPage(name: 'Recently added', items: recentList),
               ),
             );
             if (mounted) setState(() {});
@@ -533,7 +618,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 }
               },
               itemBuilder: (_) => const [
-                PopupMenuItem<String>(value: 'delete', child: Text('Delete playlist')),
+                PopupMenuItem<String>(
+                  value: 'delete',
+                  child: Text('Delete playlist'),
+                ),
               ],
             ),
             onTap: () async {
@@ -550,17 +638,30 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   // ------------------------------------------------------------------
   // Me screen
   // ------------------------------------------------------------------
-  Widget _meRow(IconData icon, String title, VoidCallback onTap, {String? sub}) {
+  Widget _meRow(
+    IconData icon,
+    String title,
+    VoidCallback onTap, {
+    String? sub,
+  }) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
       leading: Container(
         width: 42,
         height: 42,
-        decoration: BoxDecoration(color: C.card, borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(
+          color: C.card,
+          borderRadius: BorderRadius.circular(12),
+        ),
         child: Icon(icon, color: C.blue2, size: 23),
       ),
-      title: Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-      subtitle: sub == null ? null : Text(sub, style: const TextStyle(color: C.mut, fontSize: 12)),
+      title: Text(
+        title,
+        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+      ),
+      subtitle: sub == null
+          ? null
+          : Text(sub, style: const TextStyle(color: C.mut, fontSize: 12)),
       trailing: const Icon(Icons.chevron_right_rounded, color: C.mut),
       onTap: onTap,
     );
@@ -586,7 +687,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             children: [
               Container(
                 padding: const EdgeInsets.all(3),
-                decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
                 child: ClipOval(
                   child: Image.asset(
                     'assets/images/nazmul.jpg',
@@ -603,9 +707,15 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   children: [
                     Image.asset('assets/images/logo.png', height: 38),
                     const SizedBox(height: 6),
-                    const Text('by Md Nazmul Haque', style: TextStyle(fontSize: 13.5, color: Colors.white70)),
+                    const Text(
+                      'by Md Nazmul Haque',
+                      style: TextStyle(fontSize: 13.5, color: Colors.white70),
+                    ),
                     const SizedBox(height: 2),
-                    const Text('Ad-free video & music player', style: TextStyle(fontSize: 11.5, color: Colors.white60)),
+                    const Text(
+                      'Ad-free video & music player',
+                      style: TextStyle(fontSize: 11.5, color: Colors.white60),
+                    ),
                   ],
                 ),
               ),
@@ -615,8 +725,14 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         SwitchListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 20),
           value: Store.bg,
-          title: const Text('Background play', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-          subtitle: const Text('App theke ber hole-o sound chalu thakbe', style: TextStyle(color: C.mut, fontSize: 12)),
+          title: const Text(
+            'Background play',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+          ),
+          subtitle: const Text(
+            'App theke ber hole-o sound chalu thakbe',
+            style: TextStyle(color: C.mut, fontSize: 12),
+          ),
           onChanged: (v) async {
             await Store.setBg(v);
             if (mounted) setState(() {});
@@ -668,7 +784,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         const SizedBox(height: 6),
         Expanded(
           child: list.isEmpty
-              ? _message('Kono music paoa jayni.', button: 'Rescan', onPressed: _load, icon: Icons.library_music_rounded)
+              ? _message(
+                  'Kono music paoa jayni.',
+                  button: 'Rescan',
+                  onPressed: _load,
+                  icon: Icons.library_music_rounded,
+                )
               : ListView.builder(
                   padding: const EdgeInsets.only(bottom: 8),
                   itemCount: list.length,
