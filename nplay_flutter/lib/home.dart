@@ -18,7 +18,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final TabController _tc = TabController(length: 2, vsync: this);
   int _nav = 0; // 0 = Video, 1 = Music, 2 = Playlist, 3 = Me
   List<MediaEntry> _videos = [];
@@ -33,6 +33,7 @@ class _HomePageState extends State<HomePage>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
     OpenIntent.getInitial().then((p) {
       if (p != null) _playFile(p);
@@ -42,8 +43,45 @@ class _HomePageState extends State<HomePage>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _tc.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Auto-refresh every time NPlay comes back to the foreground, so a
+    // video downloaded/copied while the app was in the background shows
+    // up without the person having to tap Rescan.
+    if (state == AppLifecycleState.resumed) {
+      if (_denied) {
+        _load();
+      } else {
+        _silentRefresh();
+      }
+    }
+  }
+
+  /// Rescans in the background without showing the loading spinner, so
+  /// the current screen doesn't flicker every time the app is resumed.
+  Future<void> _silentRefresh() async {
+    OpenIntent.rescanSystem();
+    await Future.delayed(const Duration(milliseconds: 700));
+    if (!mounted) return;
+    final v = await Library.scan(true);
+    final s = await Library.scan(false);
+    if (!mounted) return;
+    setState(() {
+      _videos = v;
+      _songs = s;
+      mediaById.clear();
+      for (final e in v) {
+        mediaById[e.id] = e;
+      }
+      for (final e in s) {
+        mediaById[e.id] = e;
+      }
+    });
   }
 
   /// Plays a file handed to NPlay via "Open with" from another app, even
