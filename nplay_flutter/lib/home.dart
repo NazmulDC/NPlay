@@ -149,8 +149,15 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> _action(String a, List<MediaEntry> list, int i) async {
-    await handleTileAction(context, a, list, i);
-    if (mounted) setState(() {});
+    final id = list[i].id;
+    final deleted = await handleTileAction(context, a, list, i);
+    if (!mounted) return;
+    setState(() {
+      if (deleted) {
+        _videos.removeWhere((e) => e.id == id);
+        _songs.removeWhere((e) => e.id == id);
+      }
+    });
   }
 
   Future<void> _confirmClear() async {
@@ -539,7 +546,7 @@ class _HomePageState extends State<HomePage>
                 builder: (_) => FolderPage(name: k, items: l),
               ),
             );
-            if (mounted) setState(() {});
+            if (mounted) await _silentRefresh();
           },
         );
       },
@@ -623,7 +630,7 @@ class _HomePageState extends State<HomePage>
                 builder: (_) => const PlaylistPage(name: 'Favorites'),
               ),
             );
-            if (mounted) setState(() {});
+            if (mounted) await _silentRefresh();
           },
         ),
         _bigRow(
@@ -638,7 +645,7 @@ class _HomePageState extends State<HomePage>
                     FolderPage(name: 'Recently added', items: recentList),
               ),
             );
-            if (mounted) setState(() {});
+            if (mounted) await _silentRefresh();
           },
         ),
         for (final name in names)
@@ -666,7 +673,7 @@ class _HomePageState extends State<HomePage>
               await Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => PlaylistPage(name: name)),
               );
-              if (mounted) setState(() {});
+              if (mounted) await _silentRefresh();
             },
           ),
       ],

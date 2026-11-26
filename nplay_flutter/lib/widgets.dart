@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:photo_manager/photo_manager.dart';
 
@@ -42,7 +43,10 @@ Future<void> showMediaInfo(BuildContext context, MediaEntry e) {
     if (e.width > 0) MapEntry('Resolution', '${e.width} x ${e.height}'),
     if (e.sizeText().isNotEmpty) MapEntry('Size', e.sizeText()),
     MapEntry('Folder', e.folder),
-    MapEntry('Added', '${e.added.year}-${_two(e.added.month)}-${_two(e.added.day)}'),
+    MapEntry(
+      'Added',
+      '${e.added.year}-${_two(e.added.month)}-${_two(e.added.day)}',
+    ),
   ];
   return showDialog<void>(
     context: context,
@@ -60,7 +64,10 @@ Future<void> showMediaInfo(BuildContext context, MediaEntry e) {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(r.key, style: const TextStyle(fontSize: 11.5, color: C.mut)),
+                    Text(
+                      r.key,
+                      style: const TextStyle(fontSize: 11.5, color: C.mut),
+                    ),
                     Text(r.value, style: const TextStyle(fontSize: 14)),
                   ],
                 ),
@@ -69,7 +76,10 @@ Future<void> showMediaInfo(BuildContext context, MediaEntry e) {
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('OK'),
+        ),
       ],
     ),
   );
@@ -137,7 +147,11 @@ class _ThumbState extends State<NThumb> {
               FutureBuilder<Uint8List?>(
                 future: _f,
                 builder: (c, s) => s.data != null
-                    ? Image.memory(s.data!, fit: BoxFit.cover, gaplessPlayback: true)
+                    ? Image.memory(
+                        s.data!,
+                        fit: BoxFit.cover,
+                        gaplessPlayback: true,
+                      )
                     : icon,
               ),
             if (widget.entry.durationSec > 0 && widget.entry.isVideo)
@@ -145,7 +159,10 @@ class _ThumbState extends State<NThumb> {
                 right: 6,
                 bottom: widget.progress != null ? 9 : 6,
                 child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: big ? 6 : 4, vertical: 1),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: big ? 6 : 4,
+                    vertical: 1,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.black54,
                     borderRadius: BorderRadius.circular(6),
@@ -153,11 +170,18 @@ class _ThumbState extends State<NThumb> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.play_arrow_rounded, size: big ? 15 : 12, color: Colors.white),
+                      Icon(
+                        Icons.play_arrow_rounded,
+                        size: big ? 15 : 12,
+                        color: Colors.white,
+                      ),
                       const SizedBox(width: 2),
                       Text(
                         fmtDur(Duration(seconds: widget.entry.durationSec)),
-                        style: TextStyle(fontSize: big ? 11.5 : 10, color: Colors.white),
+                        style: TextStyle(
+                          fontSize: big ? 11.5 : 10,
+                          color: Colors.white,
+                        ),
                       ),
                     ],
                   ),
@@ -168,14 +192,23 @@ class _ThumbState extends State<NThumb> {
                 left: 0,
                 top: 0,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 2,
+                  ),
                   decoration: const BoxDecoration(
                     color: C.blue,
-                    borderRadius: BorderRadius.only(bottomRight: Radius.circular(8)),
+                    borderRadius: BorderRadius.only(
+                      bottomRight: Radius.circular(8),
+                    ),
                   ),
                   child: const Text(
                     'New',
-                    style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Colors.white),
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
@@ -218,7 +251,11 @@ class SourceChip extends StatelessWidget {
         ),
         child: const Text(
           'V',
-          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white),
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+          ),
         ),
       );
     } else if (n.contains('camera')) {
@@ -278,13 +315,31 @@ class MediaTile extends StatelessWidget {
       onSelected: onAction,
       itemBuilder: (_) => [
         const PopupMenuItem<String>(value: 'play', child: Text('Play')),
-        if (entry.isVideo) const PopupMenuItem<String>(value: 'audio', child: Text('Play as audio')),
-        const PopupMenuItem<String>(value: 'fav', child: Text('Add to favorites')),
+        if (entry.isVideo)
+          const PopupMenuItem<String>(
+            value: 'audio',
+            child: Text('Play as audio'),
+          ),
+        const PopupMenuItem<String>(
+          value: 'fav',
+          child: Text('Add to favorites'),
+        ),
         if (inPlaylist)
-          const PopupMenuItem<String>(value: 'remove', child: Text('Remove from playlist'))
+          const PopupMenuItem<String>(
+            value: 'remove',
+            child: Text('Remove from playlist'),
+          )
         else
-          const PopupMenuItem<String>(value: 'playlist', child: Text('Add to playlist')),
+          const PopupMenuItem<String>(
+            value: 'playlist',
+            child: Text('Add to playlist'),
+          ),
         const PopupMenuItem<String>(value: 'info', child: Text('Info')),
+        const PopupMenuDivider(),
+        const PopupMenuItem<String>(
+          value: 'delete',
+          child: Text('Delete', style: TextStyle(color: Colors.redAccent)),
+        ),
       ],
     );
   }
@@ -308,7 +363,10 @@ class MediaTile extends StatelessWidget {
                       cleanTitle(entry.title),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w500),
+                      style: const TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                     const SizedBox(height: 3),
                     Text(
@@ -327,7 +385,10 @@ class MediaTile extends StatelessWidget {
       );
     }
     final w = MediaQuery.of(context).size.width * 0.42;
-    final meta = [entry.quality, entry.sizeText()].where((s) => s.isNotEmpty).join(' | ');
+    final meta = [
+      entry.quality,
+      entry.sizeText(),
+    ].where((s) => s.isNotEmpty).join(' | ');
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -351,11 +412,18 @@ class MediaTile extends StatelessWidget {
                     cleanTitle(entry.title),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w500, height: 1.3),
+                    style: const TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w500,
+                      height: 1.3,
+                    ),
                   ),
                   if (meta.isNotEmpty) ...[
                     const SizedBox(height: 4),
-                    Text(meta, style: const TextStyle(fontSize: 12.5, color: C.mut)),
+                    Text(
+                      meta,
+                      style: const TextStyle(fontSize: 12.5, color: C.mut),
+                    ),
                   ],
                   const SizedBox(height: 6),
                   SourceChip(name: entry.folder),
@@ -410,13 +478,33 @@ Future<void> showTileMenu(
                 ),
               ),
               item(Icons.play_arrow_rounded, 'Play', 'play'),
-              if (e.isVideo) item(Icons.headphones_rounded, 'Play as audio', 'audio'),
+              if (e.isVideo)
+                item(Icons.headphones_rounded, 'Play as audio', 'audio'),
               item(Icons.favorite_border_rounded, 'Add to favorites', 'fav'),
               if (inPlaylist)
-                item(Icons.playlist_remove_rounded, 'Remove from playlist', 'remove')
+                item(
+                  Icons.playlist_remove_rounded,
+                  'Remove from playlist',
+                  'remove',
+                )
               else
                 item(Icons.playlist_add_rounded, 'Add to playlist', 'playlist'),
               item(Icons.info_outline_rounded, 'Info', 'info'),
+              const Divider(height: 1, color: C.card),
+              ListTile(
+                leading: const Icon(
+                  Icons.delete_outline_rounded,
+                  color: Colors.redAccent,
+                ),
+                title: const Text(
+                  'Delete',
+                  style: TextStyle(color: Colors.redAccent),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  onAction('delete');
+                },
+              ),
             ],
           ),
         ),
@@ -460,7 +548,10 @@ class VideoGridTile extends StatelessWidget {
                 cleanTitle(entry.title),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w500),
+                style: const TextStyle(
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ],
           ),
@@ -517,7 +608,10 @@ class NavBar extends StatelessWidget {
                               )
                             : null,
                         border: i == index
-                            ? Border.all(color: const Color(0x884D9BFF), width: 1)
+                            ? Border.all(
+                                color: const Color(0x884D9BFF),
+                                width: 1,
+                              )
                             : null,
                       ),
                       child: Column(
@@ -574,11 +668,13 @@ class MiniPlayer extends StatelessWidget {
                 child: InkWell(
                   borderRadius: BorderRadius.circular(18),
                   onTap: () {
-                    Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => e.isVideo && !handler.audioOnly.value
-                          ? const VideoPage()
-                          : const MusicPage(),
-                    ));
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => e.isVideo && !handler.audioOnly.value
+                            ? const VideoPage()
+                            : const MusicPage(),
+                      ),
+                    );
                   },
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
@@ -591,7 +687,10 @@ class MiniPlayer extends StatelessWidget {
                             color: C.blue,
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(Icons.music_note_rounded, color: Colors.white),
+                          child: const Icon(
+                            Icons.music_note_rounded,
+                            color: Colors.white,
+                          ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -599,7 +698,10 @@ class MiniPlayer extends StatelessWidget {
                             cleanTitle(e.title),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w500,
+                              fontSize: 13,
+                            ),
                           ),
                         ),
                         IconButton(

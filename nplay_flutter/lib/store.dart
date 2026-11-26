@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 class Store {
@@ -21,7 +22,8 @@ class Store {
   }
 
   /// Recently played ids, newest first.
-  static List<String> get history => List<String>.from(p.getStringList('hist') ?? <String>[]);
+  static List<String> get history =>
+      List<String>.from(p.getStringList('hist') ?? <String>[]);
 
   static Future<void> addHistory(String id) async {
     final l = history;
@@ -74,5 +76,19 @@ class Store {
     final m = playlists;
     m.remove(name);
     await _savePl(m);
+  }
+
+  /// Removes an id from history, every playlist and its saved position —
+  /// used after the underlying file has been deleted from the device.
+  static Future<void> purgeId(String id) async {
+    final h = history;
+    if (h.remove(id)) await p.setStringList('hist', h);
+    final m = playlists;
+    var changed = false;
+    for (final l in m.values) {
+      if (l.remove(id)) changed = true;
+    }
+    if (changed) await _savePl(m);
+    await p.remove('pos:$id');
   }
 }
