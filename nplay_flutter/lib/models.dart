@@ -78,8 +78,16 @@ class MediaEntry {
         return _resolved;
       }
     }
-    final f = await a.originFile;
-    _resolved = f?.path;
+    // originFile can hang for a long time (or forever on some devices) when
+    // the MediaStore entry is stale or the asset is a cloud-backed photo
+    // item that was never fully downloaded, which used to freeze the whole
+    // "open video" flow. Bound it so a single bad file can't block playback.
+    try {
+      final f = await a.originFile.timeout(const Duration(seconds: 8));
+      _resolved = f?.path;
+    } catch (_) {
+      _resolved = null;
+    }
     return _resolved;
   }
 }

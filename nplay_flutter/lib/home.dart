@@ -65,23 +65,28 @@ class _HomePageState extends State<HomePage>
   /// Rescans in the background without showing the loading spinner, so
   /// the current screen doesn't flicker every time the app is resumed.
   Future<void> _silentRefresh() async {
-    OpenIntent.rescanSystem();
-    await Future.delayed(const Duration(milliseconds: 700));
-    if (!mounted) return;
-    final v = await Library.scan(true);
-    final s = await Library.scan(false);
-    if (!mounted) return;
-    setState(() {
-      _videos = v;
-      _songs = s;
-      mediaById.clear();
-      for (final e in v) {
-        mediaById[e.id] = e;
-      }
-      for (final e in s) {
-        mediaById[e.id] = e;
-      }
-    });
+    try {
+      OpenIntent.rescanSystem();
+      await Future.delayed(const Duration(milliseconds: 700));
+      if (!mounted) return;
+      final v = await Library.scan(true);
+      final s = await Library.scan(false);
+      if (!mounted) return;
+      setState(() {
+        _videos = v;
+        _songs = s;
+        mediaById.clear();
+        for (final e in v) {
+          mediaById[e.id] = e;
+        }
+        for (final e in s) {
+          mediaById[e.id] = e;
+        }
+      });
+    } catch (_) {
+      // Best-effort background refresh — never let a scan hiccup here
+      // surface to the person.
+    }
   }
 
   /// Plays a file handed to NPlay via "Open with" from another app, even
@@ -99,33 +104,46 @@ class _HomePageState extends State<HomePage>
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    OpenIntent.rescanSystem();
-    final ok = await Library.ask();
-    if (!ok) {
+    try {
+      OpenIntent.rescanSystem();
+      final ok = await Library.ask().timeout(
+        const Duration(seconds: 25),
+        onTimeout: () => false,
+      );
+      if (!ok) {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _denied = true;
+        });
+        return;
+      }
+      final v = await Library.scan(true);
+      final s = await Library.scan(false);
+      if (!mounted) return;
+      setState(() {
+        _videos = v;
+        _songs = s;
+        mediaById.clear();
+        for (final e in v) {
+          mediaById[e.id] = e;
+        }
+        for (final e in s) {
+          mediaById[e.id] = e;
+        }
+        _loading = false;
+        _denied = false;
+      });
+      Permission.notification.request();
+    } catch (_) {
+      // Whatever went wrong, don't leave the person staring at the
+      // loading spinner forever — show the library (even if empty) with
+      // a way to rescan instead.
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _denied = true;
       });
-      return;
     }
-    final v = await Library.scan(true);
-    final s = await Library.scan(false);
-    if (!mounted) return;
-    setState(() {
-      _videos = v;
-      _songs = s;
-      mediaById.clear();
-      for (final e in v) {
-        mediaById[e.id] = e;
-      }
-      for (final e in s) {
-        mediaById[e.id] = e;
-      }
-      _loading = false;
-      _denied = false;
-    });
-    Permission.notification.request();
   }
 
   List<MediaEntry> _view(List<MediaEntry> src) {

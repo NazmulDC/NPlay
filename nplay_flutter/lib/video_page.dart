@@ -40,6 +40,14 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
   BoxFit _fit = BoxFit.contain;
   double? _scrub;
 
+  // Pinch-to-zoom / drag-to-pan the video picture.
+  double _zoom = 1.0;
+  Offset _zoomOffset = Offset.zero;
+  double _zoomStartVal = 1.0;
+  Offset _zoomOffsetStart = Offset.zero;
+  String? _panMode; // null | 'seek' | 'bright' | 'vol'
+  Offset _panAccum = Offset.zero;
+
   String? _hud;
   IconData _hudIcon = Icons.info_outline_rounded;
   String? _seekFb;
@@ -54,6 +62,9 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
   Timer? _fbT;
   Timer? _hudT;
   Timer? _sleepT;
+  Timer? _stuckT;
+  StreamSubscription<Duration>? _posSub;
+  bool _stuck = false;
 
   @override
   void initState() {
@@ -68,6 +79,29 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
     WakelockPlus.enable();
     _saveT = Timer.periodic(const Duration(seconds: 3), (_) => _save());
     _armHide();
+    _armStuckWatch();
+  }
+
+  /// If, 18 seconds after opening, the file is still only "buffering" and
+  /// has never actually started playing, show a clear message instead of
+  /// leaving the person staring at an endless loading spinner forever
+  /// (can happen for a corrupted/partial download or a moved/stale file).
+  void _armStuckWatch() {
+    _stuckT?.cancel();
+    _stuckT = Timer(const Duration(seconds: 18), () {
+      if (!mounted) return;
+      final st = p.state;
+      if (st.buffering && st.position == Duration.zero) {
+        setState(() => _stuck = true);
+      }
+    });
+    _posSub ??= p.stream.position.listen((pos) {
+      if (pos > Duration.zero && (_stuck || _stuckT != null)) {
+        _stuckT?.cancel();
+        _stuckT = null;
+        if (_stuck && mounted) setState(() => _stuck = false);
+      }
+    });
   }
 
   @override
@@ -79,6 +113,8 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
     _fbT?.cancel();
     _hudT?.cancel();
     _sleepT?.cancel();
+    _stuckT?.cancel();
+    _posSub?.cancel();
     _save();
     p.setRate(1.0);
     Bright.reset();
@@ -484,44 +520,100 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
               setState(() => _boost = false);
             }
           },
-          onVerticalDragUpdate: (d) {
-            final left = d.localPosition.dx < w / 2;
-            final delta = -d.delta.dy / (h * 0.6);
-            if (left) {
-              _bright = (_bright + delta).clamp(0.02, 1.0).toDouble();
-              Bright.set(_bright);
+          onScaleStart: (d) {
+            _panMode = null;
+            _panAccum = Offset.zero;
+            _zoomStartVal = _zoom;
+            _zoomOffsetStart = _zoomOffset;
+            _dragTarget = p.state.position;
+          },
+          onScaleUpdate: (d) {
+            if (d.pointerCount >= 2) {
+              // Two fingers: pinch to zoom in/out, drag to pan the picture.
+              setState(() {
+                _zoom = (_zoomStartVal * d.scale).clamp(1.0, 4.0);
+                _zoomOffset = _zoomOffsetStart + d.focalPointDelta;
+              });
               _showHud(
-                Icons.brightness_6_rounded,
-                '${(_bright * 100).round()}%',
+                Icons.zoom_in_rounded,
+                '${(_zoom * 100).round()}%',
               );
+              return;
+            }
+            // One finger: keep the old behaviour — first clear movement
+            // direction decides brightness/volume (vertical) vs seek
+            // (horizontal), exactly like before.
+            _panAccum += d.focalPointDelta;
+            if (_panMode == null) {
+              if (_panAccum.distance < 8) return;
+              if (_panAccum.dx.abs() > _panAccum.dy.abs()) {
+                _panMode = 'seek';
+              } else {
+                _panMode = d.localFocalPoint.dx < w / 2 ? 'bright' : 'vol';
+              }
+            }
+            if (_panMode == 'seek') {
+              final cur = _dragTarget;
+              if (cur == null) return;
+              var t = cur +
+                  Duration(
+                    milliseconds: (d.focalPointDelta.dx * 150).round(),
+                  );
+              final dur = p.state.duration;
+              if (t < Duration.zero) t = Duration.zero;
+              if (dur > Duration.zero && t > dur) t = dur;
+              _dragTarget = t;
+              _showHud(Icons.swap_horiz_rounded, fmtDur(t));
             } else {
-              _vol = (_vol + delta * 200).clamp(0.0, 200.0).toDouble();
-              p.setVolume(_vol);
-              _showHud(
-                _vol == 0 ? Icons.volume_off_rounded : Icons.volume_up_rounded,
-                '${_vol.round()}%',
-              );
+              final delta = -d.focalPointDelta.dy / (h * 0.6);
+              if (_panMode == 'bright') {
+                _bright = (_bright + delta).clamp(0.02, 1.0).toDouble();
+                Bright.set(_bright);
+                _showHud(
+                  Icons.brightness_6_rounded,
+                  '${(_bright * 100).round()}%',
+                );
+              } else {
+                _vol = (_vol + delta * 200).clamp(0.0, 200.0).toDouble();
+                p.setVolume(_vol);
+                _showHud(
+                  _vol == 0
+                      ? Icons.volume_off_rounded
+                      : Icons.volume_up_rounded,
+                  '${_vol.round()}%',
+                );
+              }
             }
           },
-          onHorizontalDragStart: (_) => _dragTarget = p.state.position,
-          onHorizontalDragUpdate: (d) {
-            final cur = _dragTarget;
-            if (cur == null) return;
-            var t = cur + Duration(milliseconds: (d.delta.dx * 150).round());
-            final dur = p.state.duration;
-            if (t < Duration.zero) t = Duration.zero;
-            if (dur > Duration.zero && t > dur) t = dur;
-            _dragTarget = t;
-            _showHud(Icons.swap_horiz_rounded, fmtDur(t));
-          },
-          onHorizontalDragEnd: (_) {
-            final t = _dragTarget;
-            if (t != null) p.seek(t);
+          onScaleEnd: (_) {
+            if (_panMode == 'seek') {
+              final t = _dragTarget;
+              if (t != null) p.seek(t);
+            }
             _dragTarget = null;
+            _panMode = null;
+            // Snap back to the normal size when the user pinches close to
+            // 1x, so it's easy to get back to the original view.
+            if (_zoom < 1.05) {
+              setState(() {
+                _zoom = 1.0;
+                _zoomOffset = Offset.zero;
+              });
+            } else {
+              _zoomOffset = _clampZoomOffset(_zoomOffset, _zoom, w, h);
+              setState(() {});
+            }
           },
         );
       },
     );
+  }
+
+  Offset _clampZoomOffset(Offset o, double zoom, double w, double h) {
+    if (zoom <= 1.0) return Offset.zero;
+    final maxX = w * (zoom - 1) / 2;
+    final maxY = h * (zoom - 1) / 2;
+    return Offset(o.dx.clamp(-maxX, maxX), o.dy.clamp(-maxY, maxY));
   }
 
   Widget _topBar() {
@@ -849,12 +941,20 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
                 Positioned.fill(
                   child: audioOnly
                       ? _audioBackdrop()
-                      : Video(
-                          controller: handler.video,
-                          controls: NoVideoControls,
-                          fit: _fit,
-                          fill: Colors.black,
-                          pauseUponEnteringBackgroundMode: !_bg,
+                      : ClipRect(
+                          child: Transform(
+                            alignment: Alignment.center,
+                            transform: Matrix4.identity()
+                              ..translate(_zoomOffset.dx, _zoomOffset.dy)
+                              ..scale(_zoom, _zoom),
+                            child: Video(
+                              controller: handler.video,
+                              controls: NoVideoControls,
+                              fit: _fit,
+                              fill: Colors.black,
+                              pauseUponEnteringBackgroundMode: !_bg,
+                            ),
+                          ),
                         ),
                 ),
                 Positioned.fill(child: _gestureLayer()),
@@ -937,6 +1037,53 @@ class _VideoPageState extends State<VideoPage> with WidgetsBindingObserver {
                                   fontSize: 18,
                                   fontWeight: FontWeight.w700,
                                 ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                if (_stuck)
+                  Positioned.fill(
+                    child: Container(
+                      color: Colors.black87,
+                      child: Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(28),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.error_outline_rounded,
+                                size: 52,
+                                color: C.blue2,
+                              ),
+                              const SizedBox(height: 14),
+                              const Text(
+                                'Ei video-ta load hocche na. File-ta hoyto nosto hoye geche ba phone theke muche gese.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(height: 1.6),
+                              ),
+                              const SizedBox(height: 20),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  OutlinedButton(
+                                    onPressed: () {
+                                      setState(() => _stuck = false);
+                                      p.open(p.state.playlist, play: true);
+                                      _armStuckWatch();
+                                    },
+                                    child: const Text('Abar try'),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  FilledButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).maybePop(),
+                                    child: const Text('Back'),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
